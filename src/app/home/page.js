@@ -35,7 +35,7 @@ const Home = () => {
             <div className="flex items-center">
               <div 
                 className="flex items-center cursor-pointer" 
-                onClick={handleGoHome}
+                onClick={() => router.push("/")}
               >
                 <span className="text-emerald-500 font-bold text-xl mr-2">
                   EcoClassify
@@ -50,7 +50,7 @@ const Home = () => {
                 <div className="flex items-center space-x-4">
                   <div className="hidden md:flex flex-col items-end">
                     <span className="text-gray-300 text-sm">
-                      Welcome,
+                      Welcome back,
                     </span>
                     <span className="text-emerald-400 font-medium">
                       {session.user?.name || "User"}
@@ -61,7 +61,7 @@ const Home = () => {
                   </div>
                   <button
                     onClick={handleSignOut}
-                    className="px-4 py-2 cursor-pointer rounded-md text-sm font-medium text-white bg-gradient-to-r from-red-800 to-red-700 hover:from-red-700 hover:to-red-600 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-opacity-50 transition-all duration-200 ease-in-out shadow-sm"
+                    className="px-4 py-2 rounded-md text-sm font-medium text-white bg-gradient-to-r from-red-800 to-red-700 hover:from-red-700 hover:to-red-600 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-opacity-50 transition-all duration-200 ease-in-out shadow-sm"
                   >
                     Sign Out
                   </button>
@@ -72,6 +72,7 @@ const Home = () => {
         </div>
       </nav>
 
+      
       <div className="container mx-auto py-24 px-4 max-w-6xl">
         <div className="text-center mb-16">
           <h1 className="text-4xl font-bold text-white mb-4">
@@ -120,7 +121,7 @@ const Home = () => {
               </ul>
               <div className="flex justify-center">
                 <Link href="/user">
-                  <button className="cursor-pointer relative bg-gradient-to-r from-emerald-700 to-emerald-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-600 hover:to-emerald-500 transition-all duration-300 shadow-md group-hover:scale-105 overflow-hidden">
+                  <button className="relative bg-gradient-to-r from-emerald-700 to-emerald-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-600 hover:to-emerald-500 transition-all duration-300 shadow-md group-hover:scale-105 overflow-hidden">
                     <span className="relative z-10">Start Classification</span>
                     <span className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></span>
                   </button>
@@ -142,7 +143,7 @@ const Home = () => {
             </div>
             <div className="p-6">
               <p className="text-gray-300 mb-6 min-h-[80px]">
-                Streamline your organization waste management with our intelligent scheduling system that optimizes collection routes and ensures timely disposal of all waste categories.
+                Streamline your organizations waste management with our intelligent scheduling system that optimizes collection routes and ensures timely disposal of all waste categories.
               </p>
               <ul className="text-gray-400 mb-8 pl-5 space-y-2">
                 <li className="flex items-center">
@@ -166,7 +167,7 @@ const Home = () => {
               </ul>
               <div className="flex justify-center">
                 <Link href="/org">
-                  <button className="relative bg-gradient-to-r cursor-pointer from-emerald-700 to-emerald-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-600 hover:to-emerald-500 transition-all duration-300 shadow-md group-hover:scale-105 overflow-hidden">
+                  <button className="relative bg-gradient-to-r from-emerald-700 to-emerald-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-600 hover:to-emerald-500 transition-all duration-300 shadow-md group-hover:scale-105 overflow-hidden">
                     <span className="relative z-10">Manage Schedule</span>
                     <span className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></span>
                   </button>
@@ -176,7 +177,6 @@ const Home = () => {
           </div>
         </div>
 
-        
         <div className="mt-16 pt-8 border-t border-gray-700 text-center text-gray-500 text-sm">
           <p>© 2025 EcoClassify. All rights reserved.</p>
           <p className="mt-2">Empowering organizations to make environmentally responsible waste management decisions.</p>

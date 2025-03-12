@@ -496,7 +496,7 @@ const CalendarEventForm = () => {
             <div className="flex items-center">
               <div 
                 className="flex items-center cursor-pointer" 
-                onClick={handleGoHome}
+                onClick={() => router.push("/")}
               >
                 <span className="text-emerald-500 font-bold text-xl mr-2">
                   EcoClassify
@@ -511,7 +511,7 @@ const CalendarEventForm = () => {
                 <div className="flex items-center space-x-4">
                   <div className="hidden md:flex flex-col items-end">
                     <span className="text-gray-300 text-sm">
-                      Welcome,
+                      Welcome back,
                     </span>
                     <span className="text-emerald-400 font-medium">
                       {session.user?.name || "User"}
@@ -522,7 +522,7 @@ const CalendarEventForm = () => {
                   </div>
                   <button
                     onClick={handleSignOut}
-                    className="px-4 py-2 cursor-pointer rounded-md text-sm font-medium text-white bg-gradient-to-r from-red-800 to-red-700 hover:from-red-700 hover:to-red-600 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-opacity-50 transition-all duration-200 ease-in-out shadow-sm"
+                    className="px-4 py-2 rounded-md text-sm font-medium text-white bg-gradient-to-r from-red-800 to-red-700 hover:from-red-700 hover:to-red-600 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-opacity-50 transition-all duration-200 ease-in-out shadow-sm"
                   >
                     Sign Out
                   </button>

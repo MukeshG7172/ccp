@@ -34,50 +34,40 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
-       <nav className="bg-gray-900 border-b border-gray-700 fixed top-0 left-0 right-0 z-10 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <div 
-                className="flex items-center cursor-pointer" 
-                onClick={handleGoHome}
+      <nav className="bg-gray-800 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v11a3 3 0 106 0V4a2 2 0 00-2-2H4zm1 14a1 1 0 100-2 1 1 0 000 2zm5-14a2 2 0 10-4 0v1H5V4a1 1 0 011-1h3a1 1 0 011 1v10.75a1.25 1.25 0 102.5 0V5H11v2.25a1.25 1.25 0 102.5 0V4a2 2 0 00-2-2h-1z" clipRule="evenodd" />
+            </svg>
+            <h1 className="text-2xl font-bold text-green-400">EcoClassify</h1>
+          </div>
+          <div className="hidden md:flex space-x-8">
+            <a href="#features" className="hover:text-green-400 transition-colors">Features</a>
+            <a href="#how-it-works" className="hover:text-green-400 transition-colors">How it Works</a>
+            <a href="#benefits" className="hover:text-green-400 transition-colors">Benefits</a>
+            <a href="#contact" className="hover:text-green-400 transition-colors">Contact</a>
+          </div>
+          <div>
+            {!session ? (
+              <button 
+                onClick={handleLogin}
+                className="bg-green-500 cursor-pointer hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors"
               >
-                <span className="text-emerald-500 font-bold text-xl mr-2">
-                  EcoClassify
-                </span>
-                <span className="hidden sm:inline-block text-xs bg-emerald-900 text-emerald-300 px-2 py-1 rounded-full">
-                  Smart Waste Management
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center">
-              {session && (
-                <div className="flex items-center space-x-4">
-                  <div className="hidden md:flex flex-col items-end">
-                    <span className="text-gray-300 text-sm">
-                      Welcome,
-                    </span>
-                    <span className="text-emerald-400 font-medium">
-                      {session.user?.name || "User"}
-                    </span>
-                  </div>
-                  <div className="h-8 w-8 rounded-full bg-emerald-800 flex items-center justify-center text-white uppercase text-sm font-bold md:hidden">
-                    {session.user?.name ? session.user.name.charAt(0) : "U"}
-                  </div>
-                  <button
-                    onClick={handleSignOut}
-                    className="px-4 py-2 cursor-pointer rounded-md text-sm font-medium text-white bg-gradient-to-r from-red-800 to-red-700 hover:from-red-700 hover:to-red-600 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-opacity-50 transition-all duration-200 ease-in-out shadow-sm"
-                  >
-                    Sign Out
-                  </button>
-                </div>
-              )}
-            </div>
+                Sign In
+              </button>
+            ) : (
+              <button 
+                onClick={handleSignOut}
+                className="bg-red-700 cursor-pointer hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Sign Out
+              </button>
+            )}
           </div>
         </div>
       </nav>
 
-      
       <section className="relative py-20 px-6">
         <div className="absolute inset-0 bg-gradient-to-r from-green-900/30 to-blue-900/20 z-0"></div>
         <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center relative z-10">
@@ -314,6 +304,7 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
 
       <section className="py-20 px-6 bg-gradient-to-r from-green-900/40 to-blue-900/30">
         <div className="max-w-4xl mx-auto text-center">
