@@ -142,7 +142,7 @@ const Home = () => {
             </div>
             <div className="p-6">
               <p className="text-gray-300 mb-6 min-h-[80px]">
-                Streamline your organization's waste management with our intelligent scheduling system that optimizes collection routes and ensures timely disposal of all waste categories.
+                Streamline your organization waste management with our intelligent scheduling system that optimizes collection routes and ensures timely disposal of all waste categories.
               </p>
               <ul className="text-gray-400 mb-8 pl-5 space-y-2">
                 <li className="flex items-center">
