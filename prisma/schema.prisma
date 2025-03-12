@@ -13,3 +13,10 @@ model Admin {
   id    Int    @id @default(autoincrement())
   email String @unique
 }
+
+model Event {
+  id        Int      @id @default(autoincrement())
+  title     String
+  date      DateTime
+  createdAt DateTime @default(now())
+}

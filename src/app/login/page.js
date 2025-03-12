@@ -17,7 +17,7 @@ export default function LoginPage() {
         const sessionData = await res.json();
         if (sessionData?.user) {
           setSession(sessionData);
-          router.push("/");
+          router.push("/home");
         }
       } catch (error) {
         console.error("Error fetching session:", error);
@@ -29,7 +29,7 @@ export default function LoginPage() {
   }, [router]);
 
   const handleGoogleSignIn = () => {
-    signIn("google", { callbackUrl: "/" });
+    signIn("google", { callbackUrl: "/home" });
   };
 
   if (loading) {
