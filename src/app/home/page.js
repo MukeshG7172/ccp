@@ -1,8 +1,8 @@
-'use client';
-import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useSession, signOut } from 'next-auth/react';
+"use client";
+import React, { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useSession, signOut } from "next-auth/react";
 
 const Home = () => {
   const { data: session } = useSession();
@@ -10,7 +10,7 @@ const Home = () => {
 
   useEffect(() => {
     if (!session) {
-      router.push('/login');
+      router.push("/login");
     }
   }, [session, router]);
   if (!session) {
@@ -18,7 +18,7 @@ const Home = () => {
   }
 
   const handleSignOut = () => {
-    router.push('/login');
+    router.push("/login");
   };
 
   return (
@@ -36,8 +36,10 @@ const Home = () => {
       </nav>
 
       <div className="container mx-auto py-12 px-4">
-        <h1 className="text-3xl font-bold text-center text-gray-800 mb-10">Welcome to EcoClassify</h1>
-        
+        <h1 className="text-3xl font-bold text-center text-gray-800 mb-10">
+          Welcome to EcoClassify
+        </h1>
+
         <div className="flex flex-col md:flex-row gap-8 justify-center">
           <div className="bg-white rounded-lg shadow-lg overflow-hidden w-full md:w-2/5 hover:shadow-xl transition-shadow">
             <div className="bg-green-500 text-white p-4">
@@ -45,7 +47,8 @@ const Home = () => {
             </div>
             <div className="p-6">
               <p className="text-gray-600 mb-6">
-                Classify your waste to determine the proper disposal method and contribute to a cleaner environment.
+                Classify your waste to determine the proper disposal method and
+                contribute to a cleaner environment.
               </p>
               <div className="flex justify-center">
                 <Link href="/user">
@@ -63,7 +66,8 @@ const Home = () => {
             </div>
             <div className="p-6">
               <p className="text-gray-600 mb-6">
-                Set reminders for waste disposal dates and manage your organization's waste collection schedule.
+                Set reminders for waste disposal dates and manage your
+                organization waste collection schedule.
               </p>
               <div className="flex justify-center">
                 <Link href="/org">
