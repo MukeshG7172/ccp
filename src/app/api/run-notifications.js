@@ -197,6 +197,15 @@ const sendDailyNotifications = async () => {
     console.log(`Found ${events.length} events for today`);
     
     for (const event of events) {
+      if (!event.email && event.user?.email) {
+        event.email = event.user.email;
+      }
+      
+      if (!event.email) {
+        console.log(`No email found for event ID: ${event.id}, skipping notification`);
+        continue;
+      }
+      
       const subject = `EcoClassify Reminder: ${event.title} scheduled today`;
       const { htmlContent, textContent } = createEmailContent(event);
       
@@ -211,10 +220,12 @@ const sendDailyNotifications = async () => {
   }
 };
 
+// Express app
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get('/run-notifications', async (req, res) => {
+// Accept both GET and POST requests
+app.use('/run-notifications', async (req, res) => {
   try {
     const result = await sendDailyNotifications();
     res.json(result);
@@ -223,9 +234,25 @@ app.get('/run-notifications', async (req, res) => {
   }
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log('Scheduler endpoint ready at: /run-notifications');
-});
+// Vercel serverless function handler
+const handler = async (req, res) => {
+  try {
+    const result = await sendDailyNotifications();
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
 
-export { server, sendDailyNotifications };
+// Server setup
+let server;
+if (typeof require !== 'undefined' && require.main === module) {
+  server = app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log('Scheduler endpoint ready at: /run-notifications');
+  });
+}
+
+// Exports
+export { sendDailyNotifications, server };
+export default handler;
