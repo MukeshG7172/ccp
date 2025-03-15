@@ -224,8 +224,17 @@ const sendDailyNotifications = async () => {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Accept both GET and POST requests
-app.use('/run-notifications', async (req, res) => {
+// Updated route handlers for Express
+app.get('/run-notifications', async (req, res) => {
+  try {
+    const result = await sendDailyNotifications();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/run-notifications', async (req, res) => {
   try {
     const result = await sendDailyNotifications();
     res.json(result);
@@ -236,11 +245,18 @@ app.use('/run-notifications', async (req, res) => {
 
 // Vercel serverless function handler
 const handler = async (req, res) => {
-  try {
-    const result = await sendDailyNotifications();
-    res.status(200).json(result);
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+  // Check the request method
+  if (req.method === 'GET' || req.method === 'POST') {
+    try {
+      const result = await sendDailyNotifications();
+      res.status(200).json(result);
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  } else {
+    // Return method not allowed for other HTTP methods
+    res.setHeader('Allow', ['GET', 'POST']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 };
 
