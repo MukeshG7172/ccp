@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { parse } from "papaparse";
@@ -23,19 +23,7 @@ const CalendarEventForm = () => {
   const [csvImportSuccess, setCsvImportSuccess] = useState(null);
   const [previewData, setPreviewData] = useState([]);
 
-  if (status === "unauthenticated") {
-    useEffect(() => {
-      router.push("/login");
-    }, [status, router]);
-    
-    return (
-      <div className="max-w-6xl mx-auto p-4 bg-gray-900 min-h-screen text-gray-200 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
-      </div>
-    );
-  }
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     if (status !== "authenticated" || !session?.user?.email) return;
 
     setFetchingEvents(true);
@@ -54,17 +42,16 @@ const CalendarEventForm = () => {
     } finally {
       setFetchingEvents(false);
     }
-  };
+  }, [status, session?.user?.email]);
 
+  
   useEffect(() => {
     if (status === "authenticated") {
       fetchEvents();
-
-      // Set today as the selected date by default
       const today = new Date();
       setSelectedDate(today);
     }
-  }, [status, session]);
+  }, [status, fetchEvents]);
 
   const formatDateForInput = (date) => {
     const d = new Date(date);
@@ -607,6 +594,8 @@ const CalendarEventForm = () => {
     );
   };
 
+  // Fix #3: Remove the early return inside the component body
+  // and use conditional rendering instead
   if (status === "loading") {
     return (
       <div className="max-w-6xl mx-auto p-4 bg-gray-900 min-h-screen text-gray-200 flex items-center justify-center">
@@ -615,7 +604,13 @@ const CalendarEventForm = () => {
     );
   }
 
-
+  if (status === "unauthenticated") {
+    return (
+      <div className="max-w-6xl mx-auto p-4 bg-gray-900 min-h-screen text-gray-200 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+      </div>
+    );
+  }
 
   const handleSignOut = () => {
     signOut();
@@ -789,16 +784,16 @@ const CalendarEventForm = () => {
                     clipRule="evenodd"
                   />
                 </svg>
-                Back to Dashboard
+                Back to Home
               </button>
             </div>
 
             {message && (
               <div
                 className={`mt-4 p-3 rounded ${
-                  message.includes("success")
-                    ? "bg-green-900 text-green-200"
-                    : "bg-red-900 text-red-200"
+                  message.includes("Failed") || message.includes("failed")
+                    ? "bg-red-900 bg-opacity-20 text-red-300"
+                    : "bg-green-900 bg-opacity-20 text-green-300"
                 }`}
               >
                 {message}
@@ -806,59 +801,62 @@ const CalendarEventForm = () => {
             )}
           </div>
 
-          {selectedDateEvents.length > 0 && (
+          {selectedDate && (
             <div className="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
               <h2 className="text-lg font-semibold mb-4 text-purple-400">
-              Scheduled Waste Disposal
-            </h2>
-            <ul className="space-y-2">
-              {selectedDateEvents.map((event) => (
-                <li
-                  key={event.id}
-                  className="flex justify-between items-center p-3 bg-gray-700 border border-gray-600 rounded-lg"
-                >
-                  <span className="text-gray-200 break-words pr-2">
-                    {event.title}
-                  </span>
-                  <button
-                    onClick={() => handleDeleteEvent(event.id)}
-                    className="text-red-400 hover:text-red-300 flex-shrink-0"
-                    aria-label="Delete event"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
+                Events on{" "}
+                {selectedDate.toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </h2>
+
+              {selectedDateEvents.length > 0 ? (
+                <ul className="space-y-2">
+                  {selectedDateEvents.map((event) => (
+                    <li
+                      key={event.id}
+                      className="p-3 bg-gray-700 rounded flex justify-between items-center"
                     >
-                      <path
-                        fillRule="evenodd"
-                        d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+                      <span>{event.title}</span>
+                      <button
+                        onClick={() => handleDeleteEvent(event.id)}
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-gray-400">No events for this date.</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="xl:col-span-8 xl:order-2 order-2 overflow-auto">
+          {renderCalendar()}
+        </div>
       </div>
 
-      <div className="xl:col-span-8 xl:order-2 order-2 overflow-auto">
-        {fetchingEvents ? (
-          <div className="flex justify-center items-center h-full">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
-          </div>
-        ) : (
-          renderCalendar()
-        )}
-      </div>
+      <CsvModal />
     </div>
-
-    <CsvModal />
-  </div>
-);
+  );
 };
 
 export default CalendarEventForm;
