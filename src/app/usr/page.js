@@ -615,17 +615,7 @@ const CalendarEventForm = () => {
     );
   }
 
-if (status === "unauthenticated") {
-  useEffect(() => {
-    router.push("/");
-  }, [status, router]);
-  
-  return (
-    <div className="max-w-6xl mx-auto p-4 bg-gray-900 min-h-screen text-gray-200 flex items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
-    </div>
-  );
-}
+
 
   const handleSignOut = () => {
     signOut();
