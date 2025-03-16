@@ -23,6 +23,18 @@ const CalendarEventForm = () => {
   const [csvImportSuccess, setCsvImportSuccess] = useState(null);
   const [previewData, setPreviewData] = useState([]);
 
+  if (status === "unauthenticated") {
+    useEffect(() => {
+      router.push("/login");
+    }, [status, router]);
+    
+    return (
+      <div className="max-w-6xl mx-auto p-4 bg-gray-900 min-h-screen text-gray-200 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+      </div>
+    );
+  }
+
   const fetchEvents = async () => {
     if (status !== "authenticated" || !session?.user?.email) return;
 
@@ -685,7 +697,7 @@ if (status === "unauthenticated") {
                 Upload CSV File
               </label>
               <p className="text-xs text-gray-400 mb-2">
-                CSV must have a "waste_name" column for processing
+                CSV must have a waste_name column for processing
               </p>
               <div className="flex items-center justify-center w-full">
                 <label className="flex flex-col w-full h-24 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer bg-gray-700 hover:bg-gray-600 transition-all">
