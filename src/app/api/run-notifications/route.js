@@ -1,12 +1,30 @@
-import prisma from '../../lib/prisma';
-import nodemailer from 'nodemailer';
-import express from 'express';
+import prisma from "../../lib/prisma";
+import nodemailer from "nodemailer";
+import { NextResponse } from "next/server";
+
+// CORS headers handling
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "https://ecoclassify.com",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+// Handle OPTIONS preflight request
+export async function OPTIONS() {
+  console.log("OPTIONS request received");
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders,
+  });
+}
+
+export const dynamic = "force-dynamic";
 
 const configureEmailTransporter = () => {
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: process.env.SMTP_PORT,
-    secure: process.env.SMTP_SECURE === 'true',
+    secure: process.env.SMTP_SECURE === "true",
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASSWORD,
@@ -16,7 +34,7 @@ const configureEmailTransporter = () => {
 
 const sendEmail = async (to, subject, htmlContent, textContent) => {
   const transporter = configureEmailTransporter();
-  
+
   try {
     const info = await transporter.sendMail({
       from: `"EcoClassify" <${process.env.EMAIL_FROM}>`,
@@ -25,11 +43,11 @@ const sendEmail = async (to, subject, htmlContent, textContent) => {
       text: textContent,
       html: htmlContent,
     });
-    
+
     console.log(`Email sent: ${info.messageId}`);
     return true;
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error("Error sending email:", error);
     return false;
   }
 };
@@ -38,7 +56,7 @@ const getTodayEvents = async () => {
   const today = new Date();
   const startOfDay = new Date(today.setHours(0, 0, 0, 0));
   const endOfDay = new Date(today.setHours(23, 59, 59, 999));
-  
+
   return prisma.event.findMany({
     where: {
       date: {
@@ -53,14 +71,14 @@ const getTodayEvents = async () => {
 };
 
 const createEmailContent = (event) => {
-  const userName = event.user?.name || 'Valued Customer';
-  const formattedDate = event.date.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
+  const userName = event.user?.name || "Valued Customer";
+  const formattedDate = event.date.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
-  
+
   const htmlContent = `
 <!DOCTYPE html>
 <html>
@@ -138,15 +156,25 @@ const createEmailContent = (event) => {
         <h3>Scheduled Task Details:</h3>
         <p><strong>Task:</strong> ${event.title}</p>
         <p><strong>Date:</strong> ${formattedDate}</p>
-        ${event.description ? `<p><strong>Description:</strong> ${event.description}</p>` : ''}
-        ${event.location ? `<p><strong>Location:</strong> ${event.location}</p>` : ''}
+        ${
+          event.description
+            ? `<p><strong>Description:</strong> ${event.description}</p>`
+            : ""
+        }
+        ${
+          event.location
+            ? `<p><strong>Location:</strong> ${event.location}</p>`
+            : ""
+        }
       </div>
       
       <p>Proper waste disposal helps protect our environment and promotes sustainability in our community.</p>
       
       <p>Thank you for using EcoClassify to manage your waste disposal schedule.</p>
       
-      <a href="${process.env.APP_URL}/dashboard" class="button">View Your Dashboard</a>
+      <a href="${
+        process.env.APP_URL
+      }/dashboard" class="button">View Your Dashboard</a>
     </div>
     <div class="footer">
       <p>&copy; ${new Date().getFullYear()} EcoClassify. All rights reserved.</p>
@@ -157,7 +185,6 @@ const createEmailContent = (event) => {
 </body>
 </html>
   `;
-
 
   const textContent = `
 EcoClassify - Smart Waste Management Solutions
@@ -171,8 +198,8 @@ This is a friendly reminder about your scheduled waste disposal task for today, 
 SCHEDULED TASK DETAILS:
 Task: ${event.title}
 Date: ${formattedDate}
-${event.description ? `Description: ${event.description}` : ''}
-${event.location ? `Location: ${event.location}` : ''}
+${event.description ? `Description: ${event.description}` : ""}
+${event.location ? `Location: ${event.location}` : ""}
 
 Proper waste disposal helps protect our environment and promotes sustainability in our community.
 
@@ -185,90 +212,93 @@ If you have any questions, please contact our support team at support@ecoclassif
 
 You're receiving this email because you have scheduled a waste disposal task with EcoClassify.
   `;
-  
+
   return { htmlContent, textContent };
 };
 
 const sendDailyNotifications = async () => {
   try {
-    console.log('Running waste disposal notifications...');
-    
+    console.log("Running waste disposal notifications...");
+
     const events = await getTodayEvents();
     console.log(`Found ${events.length} events for today`);
-    
+
     for (const event of events) {
       if (!event.email && event.user?.email) {
         event.email = event.user.email;
       }
-      
+
       if (!event.email) {
-        console.log(`No email found for event ID: ${event.id}, skipping notification`);
+        console.log(
+          `No email found for event ID: ${event.id}, skipping notification`
+        );
         continue;
       }
-      
+
       const subject = `EcoClassify Reminder: ${event.title} scheduled today`;
       const { htmlContent, textContent } = createEmailContent(event);
-      
+
       await sendEmail(event.email, subject, htmlContent, textContent);
-      console.log(`Notification sent for event ID: ${event.id} to ${event.email}`);
+      console.log(
+        `Notification sent for event ID: ${event.id} to ${event.email}`
+      );
     }
-    
+
     return { success: true, count: events.length };
   } catch (error) {
-    console.error('Error sending daily notifications:', error);
+    console.error("Error sending daily notifications:", error);
     return { success: false, error: error.message };
   }
 };
 
-// Express app
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Updated route handlers for Express
-app.get('/run-notifications', async (req, res) => {
-  try {
-    const result = await sendDailyNotifications();
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post('/run-notifications', async (req, res) => {
-  try {
-    const result = await sendDailyNotifications();
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
 // Vercel serverless function handler
-const handler = async (req, res) => {
-  // Check the request method
-  if (req.method === 'GET' || req.method === 'POST') {
-    try {
-      const result = await sendDailyNotifications();
-      res.status(200).json(result);
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  } else {
-    // Return method not allowed for other HTTP methods
-    res.setHeader('Allow', ['GET', 'POST']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
-  }
-};
+export async function GET(req) {
+  console.log("GET request received at:", new Date().toISOString());
 
-// Server setup
-let server;
-if (typeof require !== 'undefined' && require.main === module) {
-  server = app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log('Scheduler endpoint ready at: /run-notifications');
-  });
+  try {
+    const result = await sendDailyNotifications();
+    return NextResponse.json(result, { headers: corsHeaders });
+  } catch (error) {
+    console.error("Comprehensive error:", error);
+    console.error("Error stack:", error.stack);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message,
+      },
+      {
+        status: 500,
+        headers: corsHeaders,
+      }
+    );
+  }
 }
 
-// Exports
-export { sendDailyNotifications, server };
-export default handler;
+export async function POST(req) {
+  console.log("POST request received at:", new Date().toISOString());
+
+  try {
+    const result = await sendDailyNotifications();
+    return NextResponse.json(result, { headers: corsHeaders });
+  } catch (error) {
+    console.error("Comprehensive error:", error);
+    console.error("Error stack:", error.stack);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message,
+      },
+      {
+        status: 500,
+        headers: corsHeaders,
+      }
+    );
+  }
+}
+
+// Default export
+export default {
+  GET,
+  POST,
+  OPTIONS,
+};
