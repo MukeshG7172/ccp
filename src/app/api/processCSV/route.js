@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { parse } from 'papaparse';
 
@@ -12,7 +11,6 @@ export const config = {
 
 export async function POST(req) {
   try {
-    // Ensure we're returning JSON content type
     const headers = {
       'Content-Type': 'application/json',
     };
@@ -58,12 +56,10 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Invalid CSV format' }, { status: 400, headers });
     }
 
-    // Validate CSV structure
     if (!parsedData.data || parsedData.data.length === 0) {
       return NextResponse.json({ error: 'The CSV file is empty or invalid' }, { status: 400, headers });
     }
 
-    // Check for waste_name column - more flexible column name detection
     const firstRow = parsedData.data[0];
     const headers_csv = Object.keys(firstRow);
     const wasteNameColumn = headers_csv.find(header => 
@@ -79,7 +75,6 @@ export async function POST(req) {
       }, { status: 400, headers });
     }
 
-    // Process each waste item
     const results = [];
     const apiKey = process.env.GEMINI_API_KEY;
     
@@ -101,14 +96,10 @@ export async function POST(req) {
         const thirtyDaysLater = new Date();
         thirtyDaysLater.setDate(today.getDate() + 30);
         const thirtyDaysFormatted = thirtyDaysLater.toISOString().split('T')[0];
-
-        // Generate a date without using the API for now to avoid potential errors
         const randomDays = Math.floor(Math.random() * 30) + 1;
         const recommendedDate = new Date();
         recommendedDate.setDate(today.getDate() + randomDays);
         const recommendedDateFormatted = recommendedDate.toISOString().split('T')[0];
-        
-        // We'll only use the AI if we have a valid API key and if we need intelligent waste date assignment
         let disposalDate = recommendedDateFormatted;
         
         if (apiKey) {
@@ -143,7 +134,7 @@ export async function POST(req) {
 
             const response = await axios.post(`${url}?key=${apiKey}`, requestBody, {
               headers: { 'Content-Type': 'application/json' },
-              timeout: 5000 // 5 second timeout to avoid hanging
+              timeout: 5000
             });
 
             const aiResponse = response.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
@@ -154,7 +145,6 @@ export async function POST(req) {
               if (dateRegex.test(aiResponse)) {
                 const responseDate = new Date(aiResponse);
                 
-                // Validate the date is within our range
                 if (!isNaN(responseDate.getTime()) && 
                     responseDate > today && 
                     responseDate <= thirtyDaysLater) {
@@ -164,7 +154,6 @@ export async function POST(req) {
             }
           } catch (aiError) {
             console.error(`AI service error for "${wasteName}":`, aiError.message);
-            // We'll use the fallback date generated earlier
           }
         }
 
@@ -175,7 +164,7 @@ export async function POST(req) {
       } catch (itemError) {
         console.error(`Error processing waste item "${wasteName}":`, itemError);
         
-        // Fallback to a date a week from now
+        
         const fallbackDate = new Date();
         fallbackDate.setDate(fallbackDate.getDate() + 7);
         const fallbackDateFormatted = fallbackDate.toISOString().split('T')[0];
@@ -187,7 +176,6 @@ export async function POST(req) {
       }
     }
 
-    // Return the processed results
     return NextResponse.json({
       results,
       success: results.filter(item => !item.error).length,

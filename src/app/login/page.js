@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 export default function LoginPage() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  const router = useRouter(); 
 
   useEffect(() => {
     async function fetchSession() {
@@ -36,8 +36,7 @@ export default function LoginPage() {
   };
 
   const handleInstitutionalSignIn = () => {
-    // For Microsoft/Azure AD (commonly used by educational institutions)
-    signIn("azure-ad", { callbackUrl: "/usr?isInstitutional=true" });
+    signIn("google", { callbackUrl: "/usr" });
   };
 
   if (loading) {
