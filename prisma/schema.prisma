@@ -12,6 +12,11 @@ model Admin {
   email String @unique
 }
 
+model Institution {
+  id    Int    @id @default(autoincrement())
+  email String @unique
+}
+
 model Event {
   id        Int      @id @default(autoincrement())
   title     String

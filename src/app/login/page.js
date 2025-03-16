@@ -3,7 +3,6 @@
 import { signIn } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 
 export default function LoginPage() {
   const [session, setSession] = useState(null);
@@ -17,7 +16,11 @@ export default function LoginPage() {
         const sessionData = await res.json();
         if (sessionData?.user) {
           setSession(sessionData);
-          router.push("/home");
+          if (sessionData.user.isInstitutional) {
+            router.push("/usr");
+          } else {
+            router.push("/home");
+          }
         }
       } catch (error) {
         console.error("Error fetching session:", error);
@@ -30,6 +33,11 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = () => {
     signIn("google", { callbackUrl: "/home" });
+  };
+
+  const handleInstitutionalSignIn = () => {
+    // For Microsoft/Azure AD (commonly used by educational institutions)
+    signIn("azure-ad", { callbackUrl: "/usr?isInstitutional=true" });
   };
 
   if (loading) {
@@ -101,13 +109,13 @@ export default function LoginPage() {
             </div>
 
             <button
-              onClick={handleGoogleSignIn}
+              onClick={handleInstitutionalSignIn}
               className="flex items-center justify-center cursor-pointer w-full py-3 px-6 border border-gray-600 text-white font-medium rounded-lg transition-all duration-300 hover:bg-gray-700 shadow-lg"
             >
               <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
-              Enterprise Sign-up
+              Institutional Login
             </button>
 
             <div className="text-sm text-gray-400 text-center mt-6">
@@ -124,7 +132,6 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
-
 
         <div className="mt-16 pt-8 border-t border-gray-700 text-center text-gray-500 text-sm">
           <p>© 2025 EcoClassify. All rights reserved.</p>

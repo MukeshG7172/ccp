@@ -2,22 +2,26 @@
 import React, { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { parse } from "papaparse";
 
 const CalendarEventForm = () => {
   const { data: session, status } = useSession();
-  const [wasteName, setWasteName] = useState("");
-  const [date, setDate] = useState("");
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetchingEvents, setFetchingEvents] = useState(true);
   const [message, setMessage] = useState("");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
-  const [generatingDate, setGeneratingDate] = useState(false);
-  const [isDateGenerated, setIsDateGenerated] = useState(false);
-  const [wasteImage, setWasteImage] = useState(null);
-  const [isUploading, setIsUploading] = useState(false);
   const router = useRouter();
+
+  // States for CSV functionality
+  const [csvFile, setCsvFile] = useState(null);
+  const [csvData, setCsvData] = useState([]);
+  const [csvResults, setCsvResults] = useState([]);
+  const [processingCsv, setProcessingCsv] = useState(false);
+  const [showCsvModal, setShowCsvModal] = useState(false);
+  const [csvImportSuccess, setCsvImportSuccess] = useState(null);
+  const [previewData, setPreviewData] = useState([]);
 
   const fetchEvents = async () => {
     if (status !== "authenticated" || !session?.user?.email) return;
@@ -46,7 +50,6 @@ const CalendarEventForm = () => {
 
       // Set today as the selected date by default
       const today = new Date();
-      setDate(formatDateForInput(today));
       setSelectedDate(today);
     }
   }, [status, session]);
@@ -59,118 +62,132 @@ const CalendarEventForm = () => {
     )}-${String(d.getDate()).padStart(2, "0")}`;
   };
 
-  const handleImageUpload = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setWasteImage(e.target.files[0]);
-    }
+  const handleCsvUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setCsvFile(file);
+    
+    // Preview CSV data
+    parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        // Preview first 5 rows
+        setPreviewData(results.data.slice(0, 5));
+        setCsvData(results.data);
+      },
+      error: (error) => {
+        console.error("Error parsing CSV:", error);
+        setMessage("Failed to parse CSV file. Please check the format.");
+      }
+    });
   };
 
-  const handleGenerateDate = async () => {
-    if (!wasteName && !wasteImage) {
-      setMessage("Please enter a waste name or upload an image.");
+  const handleProcessCsv = async () => {
+    if (!csvFile) {
+      setMessage("Please select a CSV file to upload.");
       return;
     }
 
     if (status !== "authenticated") {
-      setMessage("You must be logged in to generate disposal dates.");
+      setMessage("You must be logged in to process CSV files.");
       return;
     }
 
-    setGeneratingDate(true);
+    setProcessingCsv(true);
     setMessage("");
 
     try {
       const formData = new FormData();
-      if (wasteName) formData.append("wasteName", wasteName);
-      if (wasteImage) formData.append("wasteImage", wasteImage);
+      formData.append("csvFile", csvFile);
+      formData.append("email", session.user.email);
 
-      const response = await fetch("/api/generateDate", {
+      const response = await fetch("/api/processCSV", {
         method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate disposal date");
+        throw new Error(errorData.error || "Failed to process CSV file");
       }
 
       const data = await response.json();
-
-      if (data.disposalDate) {
-        setDate(data.disposalDate);
-
-        const disposalDateObj = new Date(data.disposalDate);
-        setSelectedDate(disposalDateObj);
-        setCurrentMonth(
-          new Date(disposalDateObj.getFullYear(), disposalDateObj.getMonth(), 1)
-        );
-
-        setIsDateGenerated(true);
-        setMessage(
-          `Disposal date for "${wasteName || "uploaded waste"}": ${new Date(
-            data.disposalDate
-          ).toLocaleDateString("en-US", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}`
-        );
-      } else {
-        throw new Error("No disposal date was returned");
-      }
+      setCsvResults(data.results);
+      setCsvImportSuccess({
+        success: data.success,
+        errors: data.errors,
+      });
+      setShowCsvModal(true);
     } catch (error) {
-      console.error("Error generating date:", error);
+      console.error("Error processing CSV:", error);
       setMessage(
-        error.message || "Failed to generate disposal date. Please try again."
+        error.message || "Failed to process CSV file. Please try again."
       );
     } finally {
-      setGeneratingDate(false);
+      setProcessingCsv(false);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleUpdateCsvDate = (index, newDate) => {
+    const updatedResults = [...csvResults];
+    updatedResults[index].disposalDate = newDate;
+    setCsvResults(updatedResults);
+  };
 
-    if (!wasteName || !date) {
-      setMessage("Please provide both a waste name and date.");
-      return;
-    }
-
-    if (status !== "authenticated") {
-      setMessage("You must be logged in to add events.");
-      return;
-    }
+  const handleAddAllToCalendar = async () => {
+    if (csvResults.length === 0) return;
 
     setLoading(true);
     setMessage("");
+    let successCount = 0;
+    let errorCount = 0;
 
     try {
-      const response = await fetch("/api/markDate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: `${wasteName}`,
-          date,
-          email: session.user.email,
-        }),
-      });
+      for (const item of csvResults) {
+        if (item.error) {
+          errorCount++;
+          continue;
+        }
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to add event");
+        try {
+          const response = await fetch("/api/markDate", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              title: item.wasteName,
+              date: item.disposalDate,
+              email: session.user.email,
+            }),
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+        } catch (error) {
+          console.error(`Error adding ${item.wasteName} to calendar:`, error);
+          errorCount++;
+        }
       }
 
-      setWasteName("");
-      setDate(formatDateForInput(new Date()));
-      setIsDateGenerated(false);
       fetchEvents();
-      setMessage("Disposal event added successfully!");
+      setMessage(
+        `Successfully added ${successCount} events to calendar. ${
+          errorCount > 0 ? `${errorCount} items failed.` : ""
+        }`
+      );
+      setShowCsvModal(false);
+      setCsvResults([]);
+      setCsvFile(null);
+      setPreviewData([]);
     } catch (error) {
-      console.error("Error adding event:", error);
-      setMessage(error.message || "Failed to add event. Please try again.");
+      console.error("Error adding events to calendar:", error);
+      setMessage("Failed to add all events to calendar. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -243,13 +260,11 @@ const CalendarEventForm = () => {
   const goToToday = () => {
     setCurrentMonth(new Date());
     setSelectedDate(new Date());
-    setDate(formatDateForInput(new Date()));
   };
 
   const handleDateClick = (day, month, year) => {
     const newSelectedDate = new Date(year, month, day);
     setSelectedDate(newSelectedDate);
-    setDate(formatDateForInput(newSelectedDate));
   };
 
   const renderCalendar = () => {
@@ -467,6 +482,119 @@ const CalendarEventForm = () => {
 
   const selectedDateEvents = getSelectedDateEvents();
 
+  // CSV Modal Component
+  const CsvModal = () => {
+    if (!showCsvModal) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+        <div className="bg-gray-800 rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-auto border border-gray-700 shadow-xl">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-purple-400">
+              Review CSV Import
+            </h2>
+            <button
+              onClick={() => setShowCsvModal(false)}
+              className="text-gray-400 hover:text-white"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+
+          {csvImportSuccess && (
+            <div className="mb-4 p-3 bg-gray-700 rounded text-sm">
+              <p className="text-gray-200">
+                <span className="font-semibold">Results:</span>{" "}
+                {csvImportSuccess.success} items processed successfully,{" "}
+                {csvImportSuccess.errors} items with errors
+              </p>
+            </div>
+          )}
+
+          <div className="overflow-x-auto mb-4">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gray-900">
+                  <th className="p-2 border border-gray-700 text-left">
+                    Waste Name
+                  </th>
+                  <th className="p-2 border border-gray-700 text-left">
+                    Disposal Date
+                  </th>
+                  <th className="p-2 border border-gray-700 text-left">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {csvResults.map((result, index) => (
+                  <tr
+                    key={index}
+                    className={result.error ? "bg-red-900 bg-opacity-20" : ""}
+                  >
+                    <td className="p-2 border border-gray-700">
+                      {result.wasteName}
+                    </td>
+                    <td className="p-2 border border-gray-700">
+                      {result.error ? (
+                        <span className="text-red-400">Error</span>
+                      ) : (
+                        <input
+                          type="date"
+                          value={result.disposalDate}
+                          onChange={(e) =>
+                            handleUpdateCsvDate(index, e.target.value)
+                          }
+                          className="p-1 bg-gray-700 border border-gray-600 rounded text-white w-full"
+                        />
+                      )}
+                    </td>
+                    <td className="p-2 border border-gray-700">
+                      {result.error ? (
+                        <span className="text-red-400">{result.error}</span>
+                      ) : (
+                        <span className="text-green-400">Ready to import</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => setShowCsvModal(false)}
+              className="px-4 py-2 border border-gray-600 rounded hover:bg-gray-700 text-gray-300"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAddAllToCalendar}
+              disabled={loading || csvResults.length === 0}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-green-800 disabled:text-gray-400"
+            >
+              {loading ? "Adding..." : "Add All to Calendar"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (status === "loading") {
     return (
       <div className="max-w-6xl mx-auto p-4 bg-gray-900 min-h-screen text-gray-200 flex items-center justify-center">
@@ -494,8 +622,8 @@ const CalendarEventForm = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <div 
-                className="flex items-center cursor-pointer" 
+              <div
+                className="flex items-center cursor-pointer"
                 onClick={() => router.push("/")}
               >
                 <span className="text-emerald-500 font-bold text-xl mr-2">
@@ -510,9 +638,7 @@ const CalendarEventForm = () => {
               {session && (
                 <div className="flex items-center space-x-4">
                   <div className="hidden md:flex flex-col items-end">
-                    <span className="text-gray-300 text-sm">
-                      Welcome back,
-                    </span>
+                    <span className="text-gray-300 text-sm">Welcome back,</span>
                     <span className="text-emerald-400 font-medium">
                       {session.user?.name || "User"}
                     </span>
@@ -533,146 +659,136 @@ const CalendarEventForm = () => {
         </div>
       </nav>
 
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-6 mt-16">
         <h1 className="text-2xl sm:text-3xl font-bold text-purple-400">
           Waste Disposal Calendar
         </h1>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 h-[calc(100vh-100px)]">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 h-[calc(100vh-120px)]">
         <div className="xl:col-span-4 xl:order-1 order-1 overflow-auto">
           <div className="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700 mb-6">
             <h2 className="text-lg sm:text-xl font-semibold mb-4 text-purple-400">
-              Add Waste Disposal Event
+              Bulk Import Waste Items
             </h2>
 
-            <form onSubmit={handleSubmit}>
-              <div className="mb-4">
-                <label
-                  htmlFor="wasteName"
-                  className="block mb-2 font-medium text-gray-300"
-                >
-                  Waste Name
-                </label>
-                <div className="flex">
-                  <input
-                    type="text"
-                    id="wasteName"
-                    value={wasteName}
-                    onChange={(e) => {
-                      setWasteName(e.target.value);
-                      setIsDateGenerated(false);
-                    }}
-                    className="flex-1 p-2 border border-gray-600 rounded-l bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
-                    placeholder="e.g., Plastic bottle, Cardboard"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleGenerateDate}
-                    disabled={generatingDate || (!wasteName && !wasteImage)}
-                    className="bg-purple-600 text-white py-2 px-3 rounded-r hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-purple-800 disabled:text-gray-400 transition-all"
-                  >
-                    {generatingDate ? "Finding..." : "Find Date"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="mb-4">
-                <label className="block mb-2 font-medium text-gray-300">
-                  Or Upload Image of Waste
-                </label>
-                <div className="flex items-center justify-center w-full">
-                  <label className="flex flex-col w-full h-32 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer bg-gray-700 hover:bg-gray-600 transition-all">
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      {wasteImage ? (
-                        <div className="text-center">
-                          <p className="mb-2 text-sm text-gray-300">
-                            {wasteImage.name}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {Math.round(wasteImage.size / 1024)} KB
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          <svg
-                            className="w-8 h-8 mb-2 text-gray-400"
-                            fill="none"
+            <div className="mb-6">
+              <label className="block mb-2 font-medium text-gray-300">
+                Upload CSV File
+              </label>
+              <p className="text-xs text-gray-400 mb-2">
+                CSV must have a "waste_name" column for processing
+              </p>
+              <div className="flex items-center justify-center w-full">
+                <label className="flex flex-col w-full h-24 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer bg-gray-700 hover:bg-gray-600 transition-all">
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    {csvFile ? (
+                      <div className="text-center">
+                        <p className="mb-2 text-sm text-gray-300">
+                          {csvFile.name}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {Math.round(csvFile.size / 1024)} KB
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-8 h-8 mb-2 text-gray-400"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            d="M7 9l3-3 3 3m0 0v7m-3-4v-7"
                             stroke="currentColor"
-                            viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                            ></path>
-                          </svg>
-                          <p className="mb-1 text-sm text-gray-400">
-                            Click to upload image
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            PNG, JPG or WEBP
-                          </p>
-                        </>
-                      )}
-                    </div>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                    />
-                  </label>
-                </div>
-                {wasteImage && (
-                  <button
-                    type="button"
-                    onClick={() => setWasteImage(null)}
-                    className="mt-2 text-xs text-red-400 hover:text-red-300"
-                  >
-                    Remove image
-                  </button>
-                )}
-              </div>
-
-              {isDateGenerated && (
-                <div className="mb-4">
-                  <label
-                    htmlFor="date"
-                    className="block mb-2 font-medium text-gray-300"
-                  >
-                    Disposal Date (Editable)
-                  </label>
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        <p className="text-xs text-gray-400">
+                          Click or drag CSV file here to upload
+                        </p>
+                      </>
+                    )}
+                  </div>
                   <input
-                    type="date"
-                    id="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full p-2 border border-gray-600 rounded bg-gray-700 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
-                    required
+                    id="csvFile"
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={handleCsvUpload}
                   />
-                </div>
-              )}
+                </label>
+              </div>
+            </div>
 
-              {isDateGenerated && (
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-green-600 text-white py-3 px-4 rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-green-800 disabled:text-gray-400 transition-all"
+            {previewData.length > 0 && (
+              <div className="mb-4">
+                <h3 className="font-medium text-purple-400 mb-2">Preview:</h3>
+                <div className="overflow-x-auto bg-gray-700 p-2 rounded">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr>
+                        {Object.keys(previewData[0]).map((header, i) => (
+                          <th key={i} className="p-1 text-left text-gray-300 border-b border-gray-600">
+                            {header}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewData.map((row, i) => (
+                        <tr key={i}>
+                          {Object.values(row).map((cell, j) => (
+                            <td key={j} className="p-1 border-b border-gray-600 text-gray-200">
+                              {cell}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-between items-center">
+              <button
+                onClick={handleProcessCsv}
+                disabled={processingCsv || !csvFile}
+                className="bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-purple-800 disabled:text-gray-400 transition-all"
+              >
+                {processingCsv ? "Processing..." : "Process CSV"}
+              </button>
+
+              <button
+                onClick={handleGoHome}
+                className="flex items-center text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 mr-1"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
                 >
-                  {loading ? "Adding..." : "Add to Calendar"}
-                </button>
-              )}
-            </form>
+                  <path
+                    fillRule="evenodd"
+                    d="M9.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 9H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Back to Dashboard
+              </button>
+            </div>
 
             {message && (
               <div
-                className={`mt-4 p-3 rounded text-sm ${
-                  message.includes("success") || message.includes("generated")
-                    ? "bg-green-900 text-green-300 border border-green-700"
-                    : "bg-red-900 text-red-300 border border-red-700"
+                className={`mt-4 p-3 rounded ${
+                  message.includes("success")
+                    ? "bg-green-900 text-green-200"
+                    : "bg-red-900 text-red-200"
                 }`}
               >
                 {message}
@@ -680,93 +796,59 @@ const CalendarEventForm = () => {
             )}
           </div>
 
-          <div className="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
-            <h2 className="text-lg sm:text-xl font-semibold mb-4 text-purple-400">
-              Upcoming Disposals
+          {selectedDateEvents.length > 0 && (
+            <div className="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
+              <h2 className="text-lg font-semibold mb-4 text-purple-400">
+              Scheduled Waste Disposal
             </h2>
-
-            {fetchingEvents ? (
-              <div className="flex justify-center items-center h-20">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-              </div>
-            ) : events.length > 0 ? (
-              <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                {events
-                  .sort((a, b) => new Date(a.date) - new Date(b.date))
-                  .filter(
-                    (event) =>
-                      new Date(event.date) >=
-                      new Date(new Date().setHours(0, 0, 0, 0))
-                  )
-                  .slice(0, 5)
-                  .map((event) => (
-                    <div
-                      key={event.id}
-                      className="p-3 border-l-4 border-purple-500 bg-gray-700 rounded flex justify-between items-center"
+            <ul className="space-y-2">
+              {selectedDateEvents.map((event) => (
+                <li
+                  key={event.id}
+                  className="flex justify-between items-center p-3 bg-gray-700 border border-gray-600 rounded-lg"
+                >
+                  <span className="text-gray-200 break-words pr-2">
+                    {event.title}
+                  </span>
+                  <button
+                    onClick={() => handleDeleteEvent(event.id)}
+                    className="text-red-400 hover:text-red-300 flex-shrink-0"
+                    aria-label="Delete event"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
                     >
-                      <div>
-                        <div className="font-medium text-white">
-                          {event.title}
-                        </div>
-                        <div className="text-sm text-gray-300 mt-1">
-                          {new Date(event.date).toLocaleDateString("en-US", {
-                            weekday: "short",
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteEvent(event.id)}
-                        className="text-red-400 hover:text-red-300 ml-2"
-                        aria-label="Delete event"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-
-                {events.filter(
-                  (event) =>
-                    new Date(event.date) >=
-                    new Date(new Date().setHours(0, 0, 0, 0))
-                ).length > 5 && (
-                  <div className="text-center text-sm text-gray-400 pt-2">
-                    +{" "}
-                    {events.filter(
-                      (event) =>
-                        new Date(event.date) >=
-                        new Date(new Date().setHours(0, 0, 0, 0))
-                    ).length - 5}{" "}
-                    more upcoming events
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-gray-400">No upcoming disposals scheduled.</p>
-            )}
+                      <path
+                        fillRule="evenodd"
+                        d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
+        )}
+      </div>
 
-        <div className="xl:col-span-8 xl:order-2 order-2 overflow-auto">
-          <div className="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700 h-full">
-            {renderCalendar()}
+      <div className="xl:col-span-8 xl:order-2 order-2 overflow-auto">
+        {fetchingEvents ? (
+          <div className="flex justify-center items-center h-full">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
           </div>
-        </div>
+        ) : (
+          renderCalendar()
+        )}
       </div>
     </div>
-  );
+
+    <CsvModal />
+  </div>
+);
 };
 
 export default CalendarEventForm;
